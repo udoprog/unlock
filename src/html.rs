@@ -35,15 +35,14 @@ html {
 }
 
 .timeline {
+    cursor: pointer;
     font-size: 18px;
+    height: 18px;
     position: relative;
-    min-height: 1em;
     background-color: #ffffff;
-    margin-top: 10px;
 }
 
 .lock-session {
-    cursor: pointer;
     margin: 5px 0;
 }
 
@@ -224,31 +223,28 @@ where
             r#"<div class="title">{kind:?}&lt;{type_name}&gt; (lock index: {index})</div>"#
         )?;
 
-        let mut details = Vec::new();
-
         writeln!(out, "<div class=\"lock-session\">")?;
 
-        let height = events.len();
-        let style = format!("height: {height}em;");
-        writeln!(
-            out,
-            r#"<div data-toggle="event-{lock}-details" class="timeline" style="{style}">"#
-        )?;
+        for (thread_index, events) in events.into_iter() {
+            writeln!(
+                out,
+                r#"<div data-toggle="event-{lock}-{thread_index}-details" class="timeline">"#
+            )?;
 
-        for (level, (thread_index, events)) in events.into_iter().enumerate() {
+            let mut details = Vec::new();
+
             for (id, name, open, backtrace) in events {
                 writeln! {
                     details,
                     r#"
                     <tr>
-                        <td class="title" colspan="6">Thread: {thread_index} / Event: {id}</td>
+                        <td class="title" colspan="6">Event: {id}</td>
                     </tr>
                     "#
                 }?;
 
                 write_section(
                     &mut out,
-                    level,
                     id,
                     (start, end),
                     name,
@@ -262,20 +258,20 @@ where
 
             writeln!(
                 out,
-                r#"<span class="section-heading" style="top: {level}em;"><span>{thread_index}</span></span>"#
-            )?;
-        }
-
-        writeln!(out, "</div>")?;
-
-        if !details.is_empty() {
-            writeln!(
-                out,
-                r#"<table id="event-{lock}-details" class="details" style="display: none;">"#
+                r#"<span class="section-heading"><span>{thread_index}</span></span>"#
             )?;
 
-            out.write_all(&details)?;
-            writeln!(out, "</table>")?;
+            writeln!(out, "</div>")?;
+
+            if !details.is_empty() {
+                writeln!(
+                    out,
+                    r#"<table id="event-{lock}-{thread_index}-details" class="details" style="display: none;">"#
+                )?;
+
+                out.write_all(&details)?;
+                writeln!(out, "</table>")?;
+            }
         }
 
         writeln!(out, "</div>")?;
@@ -292,7 +288,6 @@ where
 #[allow(clippy::too_many_arguments)]
 fn write_section(
     out: &mut dyn io::Write,
-    level: usize,
     id: EventId,
     span: (u64, u64),
     title: &str,
@@ -316,7 +311,7 @@ fn write_section(
     let e = Duration::from_nanos(close);
     let duration = Duration::from_nanos(close - open);
 
-    let style = format!("width: {width}%; left: {left}%; top: {level}em;");
+    let style = format!("width: {width}%; left: {left}%;");
     let hover_title = format!("{title} ({s:?}-{e:?})");
 
     writeln!(
@@ -347,7 +342,7 @@ fn write_section(
 
     for &(id, title, child_open, backtrace) in children.get(&id).into_iter().flatten() {
         write_section(
-            out, level, id, span, title, child_open, children, closes, backtrace, d,
+            out, id, span, title, child_open, children, closes, backtrace, d,
         )?;
     }
 
