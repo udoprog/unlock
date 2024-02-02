@@ -1,0 +1,22 @@
+[package]
+name = "unlock"
+version = "0.0.1"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
+edition = "2021"
+description = "Instrumented synchronization primitives helping you to unlock performance issues"
+documentation = "https://docs.rs/unlock"
+readme = "README.md"
+homepage = "https://github.com/udoprog/unlock"
+repository = "https://github.com/udoprog/unlock"
+license = "MIT OR Apache-2.0"
+keywords = ["mutex", "rwlock", "thread"]
+categories = ["concurrency"]
+
+[features]
+default = []
+trace = []
+
+[dependencies]
+num_cpus = "1.16.0"
+parking_lot = "0.12"
+serde = { version = "1.0.196", features = ["derive"] }
