@@ -4,6 +4,8 @@
 //!
 //! Helpers for tracing and troubleshooting multithreaded code.
 //!
+//! ![Example Trace](https://github.com/udoprog/unlock/blob/main/trace.png?raw=true)
+//!
 //! <br>
 //!
 //! ## Usage
