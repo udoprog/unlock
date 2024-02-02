@@ -50,8 +50,8 @@
 //! methods such as [`html::write`], or serialized as you please using `serde`
 //! for processing later.
 //!
-//! [`RwLock`]: https://docs.rs/unlock/latest/unlock/type.RwLock.html
-//! [`Mutex`]: https://docs.rs/unlock/latest/unlock/type.Mutex.html
+//! [`RwLock`]: https://docs.rs/unlock/latest/unlock/struct.RwLock.html
+//! [`Mutex`]: https://docs.rs/unlock/latest/unlock/struct.Mutex.html
 //! [`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
 
 mod event;
