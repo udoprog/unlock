@@ -1,6 +1,6 @@
 [package]
 name = "unlock"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 description = "Instrumented synchronization primitives helping you to unlock performance issues"
