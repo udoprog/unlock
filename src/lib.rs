@@ -18,14 +18,12 @@
 //! let condition = true;
 //!
 //! if condition {
-//!     unlock::capture(true);
+//!     unlock::capture();
 //! }
 //!
 //! /* do some work */
 //!
 //! if condition {
-//!     unlock::capture(false);
-//!
 //!     let events = unlock::drain();
 //!
 //!     let f = std::fs::File::create("trace.html")?;

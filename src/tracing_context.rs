@@ -17,13 +17,12 @@ use crate::event::{Event, EventBacktrace, EventId, EventKind, LockId};
 /// Once called capturing will be started and the timestamp for the capture
 /// system will be reset.
 pub fn capture() {
-    get().capture(true);
+    get().capture();
 }
 
 /// Disable capture and drain the current collection of events.
 pub fn drain() -> Vec<Event> {
     let cx = get();
-    cx.capture(false);
     cx.drain()
 }
 
@@ -79,12 +78,9 @@ impl TracingContext {
     }
 
     /// Set whether capture is enabled.
-    pub(super) fn capture(&self, enabled: bool) {
-        if enabled {
-            *self.adjust.lock() = Some(Instant::now().duration_since(self.start).as_nanos() as u64);
-        }
-
-        self.capture.store(enabled, Ordering::Release);
+    pub(super) fn capture(&self) {
+        *self.adjust.lock() = Some(Instant::now().duration_since(self.start).as_nanos() as u64);
+        self.capture.store(true, Ordering::Release);
     }
 
     /// Enter the given span.
@@ -173,6 +169,8 @@ impl TracingContext {
     /// If capture is enabled while draining, the exact events recorded are
     /// not specified.
     pub(super) fn drain(&self) -> Vec<Event> {
+        self.capture.store(false, Ordering::Release);
+
         let mut output = Vec::new();
 
         let adjust = *self.adjust.lock();
