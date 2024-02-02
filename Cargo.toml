@@ -20,3 +20,6 @@ trace = []
 num_cpus = "1.16.0"
 parking_lot = "0.12"
 serde = { version = "1.0.196", features = ["derive"] }
+
+[package.metadata.docs.rs]
+all-features = true
