@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use super::event::{EventId, LockId, LockKind};
 use super::tracing_context::get;
 
-/// Wrapper for `parking_lot::RwLock<T>`.
+/// Wrapper for [`parking_lot::RwLock<T>`].
 pub struct RwLock<T> {
     lock: LockId,
     inner: parking_lot::RwLock<T>,
@@ -54,7 +54,7 @@ where
     }
 }
 
-/// Wrapper for `parking_lot::RwLockReadGuard<T>`.
+/// Wrapper for [`parking_lot::RwLockReadGuard<T>`].
 pub struct RwLockReadGuard<'a, T> {
     inner: parking_lot::RwLockReadGuard<'a, T>,
     event: Option<EventId>,
@@ -76,7 +76,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
     }
 }
 
-/// Wrapper for `parking_lot::RwLockWriteGuard<T>`.
+/// Wrapper for [`parking_lot::RwLockWriteGuard<T>`].
 pub struct RwLockWriteGuard<'a, T> {
     inner: parking_lot::RwLockWriteGuard<'a, T>,
     event: Option<EventId>,
@@ -105,7 +105,7 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
     }
 }
 
-/// Wrapper for `parking_lot::RwLock<T>`.
+/// Wrapper for [`parking_lot::Mutex<T>`].
 pub struct Mutex<T> {
     inner: parking_lot::Mutex<T>,
     lock: LockId,
@@ -143,7 +143,7 @@ where
     }
 }
 
-/// Wrapper for `parking_lot::MutexGuard<T>`.
+/// Wrapper for [`parking_lot::MutexGuard<T>`].
 pub struct MutexGuard<'a, T> {
     inner: parking_lot::MutexGuard<'a, T>,
     event: Option<EventId>,

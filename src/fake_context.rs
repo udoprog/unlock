@@ -6,8 +6,7 @@ use crate::event::Event;
 /// set the `trace` feature.
 #[inline(always)]
 #[allow(unused)]
-pub fn capture(enabled: bool) {
-}
+pub fn capture(enabled: bool) {}
 
 /// Drain the current capture of events.
 ///

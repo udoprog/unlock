@@ -32,6 +32,27 @@
 //! }
 //! # Ok::<_, Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! <br>
+//!
+//! ## How does it work
+//!
+//! This library provides two facade types:
+//! * [`RwLock`]
+//! * [`Mutex`]
+//!
+//! These integrate with a high performance concurrent tracing system to capture
+//! events. While this will have some overhead, we aim to make it as small as
+//! possible.
+//!
+//! Once a workload has been instrumented, the `drain` function can be called to
+//! collect these events, which then can be formatted using either built-in
+//! methods such as [`html::write`], or serialized as you please using `serde`
+//! for processing later.
+//!
+//! [`RwLock`]: https://docs.rs/unlock/latest/unlock/type.RwLock.html
+//! [`Mutex`]: https://docs.rs/unlock/latest/unlock/type.Mutex.html
+//! [`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
 
 mod event;
 pub use self::event::Event;

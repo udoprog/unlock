@@ -157,7 +157,7 @@ where
     // End of trace.
     let mut end = u64::MIN;
 
-    let mut opens = BTreeMap::<_, Vec<_>>::new();
+    let mut opens = BTreeMap::<_, BTreeMap<_, Vec<_>>>::new();
     let mut children = HashMap::<_, Vec<_>>::new();
     let mut closes = HashMap::new();
 
@@ -182,13 +182,12 @@ where
                         backtrace.as_ref(),
                     ));
                 } else {
-                    opens.entry((*lock, type_name.as_ref())).or_default().push((
-                        event.id,
-                        name.as_ref(),
-                        event.timestamp,
-                        backtrace.as_ref(),
-                        event.thread_index,
-                    ));
+                    opens
+                        .entry((*lock, type_name.as_ref()))
+                        .or_default()
+                        .entry(event.thread_index)
+                        .or_default()
+                        .push((event.id, name.as_ref(), event.timestamp, backtrace.as_ref()));
                 }
             }
             EventKind::Leave {
@@ -236,19 +235,34 @@ where
             r#"<div data-toggle="event-{lock}-details" class="timeline" style="{style}">"#
         )?;
 
-        for (level, (id, name, open, backtrace, thread_index)) in events.into_iter().enumerate() {
-            write_section(
-                &mut out,
-                level,
-                Some(thread_index),
-                id,
-                (start, end),
-                name,
-                open,
-                &children,
-                &closes,
-                backtrace,
-                &mut details,
+        for (level, (thread_index, events)) in events.into_iter().enumerate() {
+            for (id, name, open, backtrace) in events {
+                writeln! {
+                    details,
+                    r#"
+                    <tr>
+                        <td class="title" colspan="6">Thread: {thread_index} / Event: {id}</td>
+                    </tr>
+                    "#
+                }?;
+
+                write_section(
+                    &mut out,
+                    level,
+                    id,
+                    (start, end),
+                    name,
+                    open,
+                    &children,
+                    &closes,
+                    backtrace,
+                    &mut details,
+                )?;
+            }
+
+            writeln!(
+                out,
+                r#"<span class="section-heading" style="top: {level}em;"><span>{thread_index}</span></span>"#
             )?;
         }
 
@@ -279,7 +293,6 @@ where
 fn write_section(
     out: &mut dyn io::Write,
     level: usize,
-    thread_index: Option<usize>,
     id: EventId,
     span: (u64, u64),
     title: &str,
@@ -303,13 +316,6 @@ fn write_section(
     let e = Duration::from_nanos(close);
     let duration = Duration::from_nanos(close - open);
 
-    if let Some(thread_index) = thread_index {
-        writeln!(
-            out,
-            r#"<span class="section-heading" style="top: {level}em;"><span>{thread_index} / {id}</span></span>"#
-        )?;
-    }
-
     let style = format!("width: {width}%; left: {left}%; top: {level}em;");
     let hover_title = format!("{title} ({s:?}-{e:?})");
 
@@ -317,17 +323,6 @@ fn write_section(
         out,
         "<div id=\"event-{id}\" class=\"section {title}\" style=\"{style}\" title=\"{hover_title}\"></div>"
     )?;
-
-    if let Some(thread_index) = thread_index {
-        writeln! {
-            d,
-            r#"
-            <tr>
-                <td class="title" colspan="6">Thread: {thread_index} / Event: {id}</td>
-            </tr>
-            "#
-        }?;
-    }
 
     writeln! {
         d,
@@ -352,7 +347,7 @@ fn write_section(
 
     for &(id, title, child_open, backtrace) in children.get(&id).into_iter().flatten() {
         write_section(
-            out, level, None, id, span, title, child_open, children, closes, backtrace, d,
+            out, level, id, span, title, child_open, children, closes, backtrace, d,
         )?;
     }
 

@@ -2,20 +2,29 @@ use std::backtrace::Backtrace;
 use std::cell::Cell;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Mutex;
 use std::sync::Once;
 use std::time::Instant;
 
+use parking_lot::Mutex;
+
 use crate::event::{Event, EventBacktrace, EventId, EventKind, LockId};
 
-/// Indicate whether capture is enabled or not.
-pub fn capture(enabled: bool) {
-    get().capture(enabled);
+/// Configure whether capturing is enabled or not.
+///
+/// This can be used to enable capture in detail for particular sections of
+/// code.
+///
+/// Once called capturing will be started and the timestamp for the capture
+/// system will be reset.
+pub fn capture() {
+    get().capture(true);
 }
 
-/// Drain the current capture of events.
+/// Disable capture and drain the current collection of events.
 pub fn drain() -> Vec<Event> {
-    get().drain()
+    let cx = get();
+    cx.capture(false);
+    cx.drain()
 }
 
 static mut TRACING_CONTEXT: NonNull<TracingContext> = NonNull::dangling();
@@ -47,6 +56,9 @@ pub(super) struct TracingContext {
     events: Vec<Mutex<Vec<Event>>>,
     // The instant tracing was started.
     start: Instant,
+    // Once capturing is started, this will be set to the instant it was started
+    // so that timestamps can be adjusted relative to it.
+    adjust: Mutex<Option<u64>>,
 }
 
 impl TracingContext {
@@ -62,11 +74,16 @@ impl TracingContext {
             capture: AtomicBool::new(false),
             events,
             start: Instant::now(),
+            adjust: Mutex::new(None),
         }
     }
 
     /// Set whether capture is enabled.
     pub(super) fn capture(&self, enabled: bool) {
+        if enabled {
+            *self.adjust.lock() = Some(Instant::now().duration_since(self.start).as_nanos() as u64);
+        }
+
         self.capture.store(enabled, Ordering::Release);
     }
 
@@ -146,7 +163,7 @@ impl TracingContext {
         });
 
         let id = EventId::next();
-        let mut events = self.events[index % self.events.len()].lock().unwrap();
+        let mut events = self.events[index % self.events.len()].lock();
         events.push(Event::new(id, duration, index, kind));
         id
     }
@@ -158,9 +175,19 @@ impl TracingContext {
     pub(super) fn drain(&self) -> Vec<Event> {
         let mut output = Vec::new();
 
+        let adjust = *self.adjust.lock();
+
         for event in self.events.iter() {
-            let mut events = event.lock().unwrap();
-            output.extend(events.drain(..));
+            let mut events = event.lock();
+
+            if let Some(adjust) = adjust {
+                for mut event in events.drain(..) {
+                    event.timestamp -= adjust;
+                    output.push(event);
+                }
+            } else {
+                output.extend(events.drain(..));
+            }
         }
 
         output.sort_by_key(|event| event.id);
