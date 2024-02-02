@@ -6,6 +6,7 @@ use std::num::{NonZeroU32, NonZeroUsize};
 #[cfg(feature = "trace")]
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 const LOCK_ID_MASK: u32 = 0x3FFFFFFF;
@@ -18,9 +19,9 @@ pub(super) enum LockKind {
     Mutex = 2,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[repr(transparent)]
-#[serde(transparent)]
 pub(super) struct LockId(NonZeroU32);
 
 impl LockId {
@@ -67,9 +68,9 @@ impl fmt::Debug for LockId {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, PartialEq, Eq, Hash)]
 #[repr(transparent)]
-#[serde(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub(super) struct EventId(NonZeroUsize);
 
 impl EventId {
@@ -94,9 +95,11 @@ impl fmt::Display for EventId {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(super) enum EventKind {
     /// Event emitted when a particular named section has been entered.
+    #[allow(dead_code)]
     Enter {
         /// The parent event this event is a child of.
         parent: Option<EventId>,
@@ -108,19 +111,20 @@ pub(super) enum EventKind {
         lock: LockId,
         /// Capture backtrace if RUST_BACKTRACE=1 or RUST_LIB_BACKTRACE=1 is
         /// set.
-        #[serde(default)]
+        #[cfg_attr(feature = "serde", serde(default))]
         backtrace: Option<EventBacktrace>,
     },
     /// Event emitted when a particular section has been left.
     ///
     /// The `sibling` identifier is the identifier of the matching event that
     /// opened this section.
+    #[allow(dead_code)]
     Leave { sibling: Option<EventId> },
 }
 
 /// A backtrace that can be serialized.
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(transparent)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct EventBacktrace(String);
 
 impl EventBacktrace {
@@ -140,7 +144,8 @@ impl fmt::Display for EventBacktrace {
 }
 
 /// A recorded event.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Event {
     /// The unique identifier of this event.
     pub(super) id: EventId,

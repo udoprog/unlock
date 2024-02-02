@@ -1,6 +1,6 @@
 [package]
 name = "unlock"
-version = "0.0.6"
+version = "0.0.7"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.65"
@@ -14,13 +14,13 @@ keywords = ["mutex", "rwlock", "thread"]
 categories = ["concurrency"]
 
 [features]
-default = []
+default = ["parking_lot", "serde"]
 trace = []
 
 [dependencies]
 num_cpus = "1.16.0"
-parking_lot = "0.12"
-serde = { version = "1.0.196", features = ["derive"] }
+parking_lot = { version = "0.12", optional = true }
+serde = { version = "1.0.196", features = ["derive"], optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

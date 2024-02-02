@@ -50,6 +50,17 @@
 //! methods such as [`html::write`], or serialized as you please using `serde`
 //! for processing later.
 //!
+//! <br>
+//!
+//! ## Features
+//!
+//! * `trace` - Enable real tracing support. If this feature is disabled, this
+//!   library will be replaced by a stub that can easily be optimized away.
+//! * `parking_lot` (default) - Enable support for `parking_lot` types. If this
+//!   feature is enabled and `trace` is disabled, this will re-export
+//!   `parking_lot` primitives.
+//! * `serde` - Enable serialization for events.
+//!
 //! [`RwLock`]: https://docs.rs/unlock/latest/unlock/struct.RwLock.html
 //! [`Mutex`]: https://docs.rs/unlock/latest/unlock/struct.Mutex.html
 //! [`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
@@ -57,19 +68,25 @@
 mod event;
 pub use self::event::Event;
 
-#[cfg(feature = "trace")]
+#[cfg(all(feature = "trace", feature = "parking_lot"))]
 mod sync;
 #[doc(inline)]
-#[cfg(feature = "trace")]
+#[cfg(all(feature = "trace", feature = "parking_lot"))]
 pub use self::sync::*;
 
-#[cfg_attr(feature = "trace", path = "tracing_context.rs")]
-#[cfg_attr(not(feature = "trace"), path = "fake_context.rs")]
+#[cfg_attr(
+    all(feature = "trace", feature = "parking_lot"),
+    path = "tracing_context.rs"
+)]
+#[cfg_attr(
+    not(all(feature = "trace", feature = "parking_lot")),
+    path = "fake_context.rs"
+)]
 mod tracing_context;
 
 pub use self::tracing_context::{capture, drain};
 
 pub mod html;
 
-#[cfg(not(feature = "trace"))]
+#[cfg(all(not(feature = "trace"), feature = "parking_lot"))]
 pub use parking_lot::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
