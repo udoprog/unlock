@@ -38,6 +38,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let events = unlock::drain();
     dbg!(events.len());
-    unlock::html::write(std::fs::File::create("trace.html")?, &events)?;
+    unlock::html::write("trace.html", &events)?;
     Ok(())
 }

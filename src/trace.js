@@ -1,28 +1,25 @@
 (function($w) {
     let load = () => {
-        $w.document.querySelectorAll('.lock-session').forEach(($session) => {
+        $w.document.querySelectorAll('.timeline').forEach(($timeline) => {
             let move = null;
             let start = null;
             let slider = null;
             let span = { from: null, to: null };
 
-            let $details = $session.querySelector(".details");
-            let $timeline = $session.querySelector(".timeline");
-            let $target = $session.querySelector(".timeline-target");
+            let id = $timeline.getAttribute("data-toggle");
+            let $details = $w.document.getElementById(id);
+            let $target = $timeline.querySelector(".timeline-target");
 
             if (!$details || !$timeline || !$target) {
                 return;
             }
-    
-            let id = $timeline.getAttribute("data-toggle");
-            let $toggle = $w.document.getElementById(id);
 
             let show = () => {
-                $toggle.classList.add("visible");
+                $details.classList.add("visible");
             };
 
             let toggle = () => {
-                $toggle.classList.toggle("visible");
+                $details.classList.toggle("visible");
             };
 
             let clearSlider = () => {
