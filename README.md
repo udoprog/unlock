@@ -28,9 +28,7 @@ if condition {
 
 if condition {
     let events = unlock::drain();
-
-    let f = std::fs::File::create("trace.html")?;
-    unlock::html::write(f, &events)?;
+    unlock::html::write("trace.html", &events)?;
     println!("Wrote trace.html");
 }
 ```

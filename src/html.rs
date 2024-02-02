@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{self, Write};
+use std::path::Path;
 use std::time::Duration;
 
 use crate::event::{EventBacktrace, EventId, EventKind};
@@ -9,148 +10,48 @@ use crate::Event;
 
 type Child<'a> = (EventId, &'a str, u64, Option<&'a EventBacktrace>);
 
-const STYLE: &str = r#"
-html {
-    font-family: helvetica, arial, sans-serif;
-}
+const STYLE: &[u8] = include_bytes!("trace.css");
+const SCRIPT: &[u8] = include_bytes!("trace.js");
 
-#traces {
-    width: 100%;
-}
-
-.title {
-    font-size: 14px;
-    font-weight: bold;
-}
-
-.lock-instance {
-    border: 1px solid #808080;
-    padding: 10px;
-    background-color: #f0f0f0;
-    margin: 10px 0;
-}
-
-.lock-instance:last-child {
-    margin-top: 0;
-}
-
-.timeline {
-    cursor: pointer;
-    font-size: 18px;
-    height: 18px;
-    position: relative;
-    background-color: #ffffff;
-}
-
-.lock-session {
-    margin: 5px 0;
-}
-
-.lock-session:last-child {
-    margin-bottom: 0;
-}
-
-.section {
-    position: absolute;
-    min-width: 2px;
-    height: 1em;
-}
-
-.section-heading {
-    position: absolute;
-    left: 0;
-}
-
-.section-heading span {
-    font-size: 0.6em;
-    line-height: 1.66em;
-    padding-left: 0.166em;
-}
-
-.section.critical {
-    background-color: #e0e0e0;
-}
-
-.section.read {
-    background-color: #367336;
-}
-
-.section.write {
-    background-color: #ff8080;
-}
-
-.section.lock {
-    background-color: #ff80ff;
-}
-
-.title.critical {
-    color: #808080;
-}
-
-.title.read {
-    color: #367336;
-}
-
-.title.write {
-    color: #ff8080;
-}
-
-.title.lock {
-    color: #ff80ff;
-}
-
-.details {
-    font-size: 12px;
-    padding: 5px;
-    margin-top: 10px;
-}
-
-.details td {
-    padding: 2px;
-}
-
-.backtrace {
-    font-family: monospace;
-    font-size: 12px;
-    white-space: pre;
-}
-"#;
-
-const SCRIPT: &str = r#"
-let visibleTarget = null;
-
-function toggle(element) {
-    if (element.style.display === "none") {
-        if (!!visibleTarget) {
-            visibleTarget.style.display = "none";
-            visibleTarget = null;
-        }  
-
-        element.style.display = "block";
-        visibleTarget = element;
-    } else {
-        element.style.display = "none";
-        visibleTarget = null;
-    }
-}
-
-document.querySelectorAll('[data-toggle]').forEach(function(element) {
-    let id = element.getAttribute("data-toggle");
-    let target = document.getElementById(id);
-
-    if (!!target) {
-        element.addEventListener("click", function(e) {
-            toggle(target);
-        });
-    }
-});
-"#;
-
-/// Write a sequence of events to html.
-pub fn write<O>(mut out: O, events: &[Event]) -> io::Result<()>
+/// Write events to the given path.
+pub fn write<P>(path: P, events: &[Event]) -> io::Result<()>
 where
-    O: io::Write,
+    P: AsRef<Path>,
 {
+    let path = path.as_ref();
+
+    let file_stem = path.file_stem().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Missing file stem from the specified path",
+        )
+    })?;
+
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Missing parent from the specified path",
+        )
+    })?;
+
+    let css = parent.join(file_stem).with_extension("css");
+    let script = parent.join(file_stem).with_extension("js");
+
+    std::fs::write(&css, STYLE)?;
+    std::fs::write(&script, SCRIPT)?;
+
+    let css = css
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid css file name"))?;
+
+    let script = script
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid script file name"))?;
+
+    let mut out = std::fs::File::create(path)?;
+
     // Start of trace.
     let mut start = u64::MAX;
     // End of trace.
@@ -202,9 +103,10 @@ where
         return Ok(());
     }
 
+    writeln!(out, "<!DOCTYPE html>")?;
     writeln!(out, "<html>")?;
     writeln!(out, "<head>")?;
-    writeln!(out, "<style>{STYLE}</style>")?;
+    writeln!(out, r#"<link href="{css}" rel="stylesheet">"#)?;
     writeln!(out, "</head>")?;
 
     writeln!(out, "<body>")?;
@@ -226,18 +128,34 @@ where
         writeln!(out, "<div class=\"lock-session\">")?;
 
         for (thread_index, events) in events.into_iter() {
+            let start = events
+                .iter()
+                .map(|(_, _, start, _)| *start)
+                .min()
+                .unwrap_or(0);
+
+            let end = events
+                .iter()
+                .flat_map(|(id, _, _, _)| closes.get(id).copied())
+                .max()
+                .unwrap_or(0);
+
             writeln!(
                 out,
-                r#"<div data-toggle="event-{lock}-{thread_index}-details" class="timeline">"#
+                r#"<div data-toggle="event-{lock}-{thread_index}-details" data-start="{start}" data-end="{end}" class="timeline">"#
             )?;
 
             let mut details = Vec::new();
 
             for (id, name, open, backtrace) in events {
+                let Some(close) = closes.get(&id).copied() else {
+                    return Ok(());
+                };
+
                 writeln! {
                     details,
                     r#"
-                    <tr>
+                    <tr data-entry data-entry-start="{open}" data-entry-close="{close}">
                         <td class="title" colspan="6">Event: {id}</td>
                     </tr>
                     "#
@@ -249,6 +167,7 @@ where
                     (start, end),
                     name,
                     open,
+                    close,
                     &children,
                     &closes,
                     backtrace,
@@ -261,12 +180,13 @@ where
                 r#"<span class="section-heading"><span>{thread_index}</span></span>"#
             )?;
 
+            writeln!(out, r#"<div class="timeline-target"></div>"#)?;
             writeln!(out, "</div>")?;
 
             if !details.is_empty() {
                 writeln!(
                     out,
-                    r#"<table id="event-{lock}-{thread_index}-details" class="details" style="display: none;">"#
+                    r#"<table id="event-{lock}-{thread_index}-details" class="details">"#
                 )?;
 
                 out.write_all(&details)?;
@@ -279,7 +199,10 @@ where
     }
 
     writeln!(out, "</div>")?;
-    writeln!(out, "<script type=\"text/javascript\">{SCRIPT}</script>")?;
+    writeln!(
+        out,
+        r#"<script type="text/javascript" src="{script}"></script>"#
+    )?;
     writeln!(out, "</body>")?;
     writeln!(out, "</html>")?;
     Ok(())
@@ -292,16 +215,18 @@ fn write_section(
     span: (u64, u64),
     title: &str,
     open: u64,
+    close: u64,
     children: &HashMap<EventId, Vec<Child<'_>>>,
     closes: &HashMap<EventId, u64>,
     backtrace: Option<&EventBacktrace>,
     d: &mut Vec<u8>,
 ) -> io::Result<()> {
-    let Some(close) = closes.get(&id).copied() else {
-        return Ok(());
-    };
-
     let (start, end) = span;
+
+    if start == end {
+        return Ok(());
+    }
+
     let total = (end - start) as f32;
 
     let left = (((open - start) as f32 / total) * 100.0).round() as u32;
@@ -322,7 +247,7 @@ fn write_section(
     writeln! {
         d,
         r#"
-        <tr>
+        <tr data-entry data-entry-start="{open}" data-entry-close="{close}">
             <td class="title {title}">{title}</td>
             <td>{s:?}</td>
             <td>&mdash;</td>
@@ -341,8 +266,21 @@ fn write_section(
     }
 
     for &(id, title, child_open, backtrace) in children.get(&id).into_iter().flatten() {
+        let Some(child_close) = closes.get(&id).copied() else {
+            continue;
+        };
+
         write_section(
-            out, id, span, title, child_open, children, closes, backtrace, d,
+            out,
+            id,
+            span,
+            title,
+            child_open,
+            child_close,
+            children,
+            closes,
+            backtrace,
+            d,
         )?;
     }
 
