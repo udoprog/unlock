@@ -9,6 +9,9 @@ use parking_lot::Mutex;
 
 use crate::event::{Event, EventBacktrace, EventId, EventKind, LockId};
 
+/// Initial event capacity for each thread.
+const CAPACITY: usize = 8192;
+
 /// Configure whether capturing is enabled or not.
 ///
 /// This can be used to enable capture in detail for particular sections of
@@ -66,7 +69,7 @@ impl TracingContext {
         let mut events = Vec::with_capacity(threads);
 
         for _ in 0..threads.max(1) {
-            events.push(Mutex::new(Vec::new()));
+            events.push(Mutex::new(Vec::with_capacity(CAPACITY)));
         }
 
         Self {
