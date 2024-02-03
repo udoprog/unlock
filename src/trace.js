@@ -52,13 +52,13 @@
 
                     show();
                 } else {
+                    dataEntries.forEach(el => {
+                        el.classList.remove("hidden");
+                    });
+
                     if (slider !== null && $target !== null) {
                         $target.parentElement.removeChild(slider);
                         slider = null;
-
-                        dataEntries.forEach(el => {
-                            el.classList.remove("hidden");
-                        });
                     } else {
                         toggle();
                     }
