@@ -1,8 +1,10 @@
 (function ($w) {
+    const PRECISION = 1000;
+    const LIMIT = 0.001;
+
     let load = () => {
         $w.document.querySelectorAll('.timeline').forEach(($timeline) => {
             let move = null;
-            let start = null;
             let slider = null;
             let span = { from: 0, to: 0 };
 
@@ -29,7 +31,7 @@
                     return;
                 }
 
-                if (Math.abs(span.from - span.to) > 0.001) {
+                if (Math.abs(span.from - span.to) > LIMIT) {
                     let start = parseInt($timeline.getAttribute("data-start"));
                     let end = parseInt($timeline.getAttribute("data-end"));
                     let duration = end - start;
@@ -53,23 +55,24 @@
                     if (slider !== null && $target !== null) {
                         $target.parentElement.removeChild(slider);
                         slider = null;
+
+                        dataEntries.forEach(el => {
+                            el.classList.remove("hidden");
+                        });
+                    } else {
+                        toggle();
                     }
-
-                    dataEntries.forEach(el => {
-                        el.classList.remove("hidden");
-                    });
-
-                    toggle();
                 }
 
                 $w.document.removeEventListener("mousemove", move);
                 move = null;
-                start = null;
                 span.from = 0;
                 span.to = 0;
             };
 
             $target.addEventListener("mousedown", (e) => {
+                $w.document.body.classList.add("dragging");
+
                 if (e.button !== 0) {
                     return;
                 }
@@ -79,11 +82,7 @@
                     slider = null;
                 }
 
-                let newSlider = $w.document.createElement("div");
-                newSlider.classList.add("slider");
-                $target.parentElement.insertBefore(newSlider, $target);
-
-                slider = newSlider;
+                let start = null;
 
                 move = (e) => {
                     let rect = $target.getBoundingClientRect();
@@ -93,17 +92,26 @@
                         start = current;
                     }
 
-                    span.from = Math.round(Math.min(start, current) * 1000) / 1000;
-                    span.to = Math.round(Math.max(start, current) * 1000) / 1000;
+                    if (slider === null && Math.abs(start - current) > LIMIT) {
+                        slider = $w.document.createElement("div");
+                        slider.classList.add("slider");
+                        $target.parentElement.insertBefore(slider, $target);
+                    }
 
-                    newSlider.style.left = (span.from * 100) + "%";
-                    newSlider.style.width = ((span.to - span.from) * 100) + "%";
+                    if (slider !== null) {
+                        span.from = Math.round(Math.max(Math.min(start, current), 0) * PRECISION) / PRECISION;
+                        span.to = Math.round(Math.min(Math.max(start, current), 1) * PRECISION) / PRECISION;
+
+                        slider.style.left = (span.from * 100) + "%";
+                        slider.style.width = ((span.to - span.from) * 100) + "%";
+                    }
                 };
 
                 $w.document.addEventListener("mousemove", move);
             });
 
             $w.document.addEventListener("mouseup", (e) => {
+                $w.document.body.classList.remove("dragging");
                 clearSlider();
             });
         });

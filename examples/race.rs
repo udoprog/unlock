@@ -10,18 +10,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     unlock::capture();
 
-    for _ in 0..10 {
+    for _ in 0..100 {
         let lock = lock.clone();
 
         threads.push(thread::spawn(move || {
             let mut sum = 0u64;
 
-            for n in 0..1000 {
+            for n in 0..100 {
                 if n % 4 == 0 {
                     *lock.write() += 1;
                 } else {
                     sum += *lock.read();
                 }
+
+                std::thread::sleep(std::time::Duration::from_millis(n % 11));
             }
 
             sum
