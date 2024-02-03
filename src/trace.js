@@ -1,10 +1,10 @@
-(function($w) {
+(function ($w) {
     let load = () => {
         $w.document.querySelectorAll('.timeline').forEach(($timeline) => {
             let move = null;
             let start = null;
             let slider = null;
-            let span = { from: null, to: null };
+            let span = { from: 0, to: 0 };
 
             let id = $timeline.getAttribute("data-toggle");
             let $details = $w.document.getElementById(id);
@@ -13,6 +13,8 @@
             if (!$details || !$timeline || !$target) {
                 return;
             }
+
+            let dataEntries = $details.querySelectorAll("[data-entry]");
 
             let show = () => {
                 $details.classList.add("visible");
@@ -23,52 +25,55 @@
             };
 
             let clearSlider = () => {
-                if (span.from !== null && span.to !== null) {
+                if (move === null) {
+                    return;
+                }
+
+                if (Math.abs(span.from - span.to) > 0.001) {
                     let start = parseInt($timeline.getAttribute("data-start"));
                     let end = parseInt($timeline.getAttribute("data-end"));
-    
                     let duration = end - start;
-    
+
                     let from = duration * span.from;
                     let to = duration * span.to;
-    
-                    $details.querySelectorAll("[data-entry]").forEach(el => {
+
+                    dataEntries.forEach(el => {
                         let entryStart = parseInt(el.getAttribute("data-entry-start"));
                         let entryClose = parseInt(el.getAttribute("data-entry-close"));
-    
+
                         if (entryStart < from || entryClose > to) {
                             el.classList.add("hidden");
                         } else {
                             el.classList.remove("hidden");
                         }
                     });
-    
-                    show();
 
-                    span.from = null;
-                    span.to = null;
+                    show();
                 } else {
                     if (slider !== null && $target !== null) {
                         $target.parentElement.removeChild(slider);
                         slider = null;
                     }
 
-                    $details.querySelectorAll("[data-entry]").forEach(el => {
+                    dataEntries.forEach(el => {
                         el.classList.remove("hidden");
                     });
-    
+
                     toggle();
                 }
-    
-                if (move !== null) {
-                    $target.removeEventListener("mousemove", move);
-                    move = null;
-                }
-    
+
+                $w.document.removeEventListener("mousemove", move);
+                move = null;
                 start = null;
+                span.from = 0;
+                span.to = 0;
             };
 
             $target.addEventListener("mousedown", (e) => {
+                if (e.button !== 0) {
+                    return;
+                }
+
                 if (slider !== null && $target !== null) {
                     $target.parentElement.removeChild(slider);
                     slider = null;
@@ -80,22 +85,25 @@
 
                 slider = newSlider;
 
-                start = e.offsetX / $target.clientWidth;
-
                 move = (e) => {
-                    let current = e.offsetX / $target.clientWidth;
+                    let rect = $target.getBoundingClientRect();
+                    let current = (e.clientX - rect.left) / rect.width;
 
-                    span.from = Math.min(start, current);
-                    span.to = Math.max(start, current);
+                    if (start === null) {
+                        start = current;
+                    }
 
-                    newSlider.style.left = Math.round(span.from * 100) + "%";
-                    newSlider.style.width = Math.round((span.to - span.from) * 100) + "%";
+                    span.from = Math.round(Math.min(start, current) * 1000) / 1000;
+                    span.to = Math.round(Math.max(start, current) * 1000) / 1000;
+
+                    newSlider.style.left = (span.from * 100) + "%";
+                    newSlider.style.width = ((span.to - span.from) * 100) + "%";
                 };
 
-                $target.addEventListener("mousemove", move);
+                $w.document.addEventListener("mousemove", move);
             });
 
-            $target.addEventListener("mouseup", (e) => {
+            $w.document.addEventListener("mouseup", (e) => {
                 clearSlider();
             });
         });
