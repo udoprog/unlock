@@ -121,6 +121,13 @@ where
                 r#"<div data-toggle="event-{lock}-{thread_index}-details" data-start="{start}" data-end="{end}" class="timeline">"#
             )?;
 
+            writeln!(
+                out,
+                r#"<div class="timeline-heading"><span>{thread_index}</span></div>"#
+            )?;
+
+            writeln!(out, r#"<div class="timeline-data">"#)?;
+
             let mut details = Vec::new();
 
             for ev in events {
@@ -151,12 +158,8 @@ where
                 )?;
             }
 
-            writeln!(
-                out,
-                r#"<span class="section-heading"><span>{thread_index}</span></span>"#
-            )?;
-
             writeln!(out, r#"<div class="timeline-target"></div>"#)?;
+            writeln!(out, "</div>")?;
             writeln!(out, "</div>")?;
 
             if !details.is_empty() {

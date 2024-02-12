@@ -41,10 +41,26 @@ body.dragging {
 }
 
 .timeline {
+    display: flex;
     font-size: 18px;
     height: 18px;
-    position: relative;
     background-color: #ffffff;
+}
+
+.timeline-heading {
+    text-align: right;
+    width: 2rem;
+    flex-shrink: 1;
+    font-size: 0.6rem;
+    line-height: 1rem;
+    padding-right: 0.5rem;
+}
+
+.timeline-data {
+    flex: 1;
+    position: relative;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
 }
 
 .timeline-target {
