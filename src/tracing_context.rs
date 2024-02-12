@@ -229,8 +229,8 @@ impl TracingContext {
                     events.leaves.push(leave);
                 }
             } else {
-                events.enters.extend(storage.enters.drain(..));
-                events.leaves.extend(storage.leaves.drain(..));
+                events.enters.append(&mut storage.enters);
+                events.leaves.append(&mut storage.leaves);
             }
         }
 
