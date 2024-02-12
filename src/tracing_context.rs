@@ -1,7 +1,7 @@
 use std::backtrace::Backtrace;
 use std::cell::Cell;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Once;
 use std::time::Instant;
 
@@ -56,15 +56,13 @@ struct ThreadStorage {
 
 /// A context capturing tracing events.
 pub(super) struct TracingContext {
-    // Whether capture is enabled or not.
-    capture: AtomicBool,
     // shaded storage for events to minimize contention.
     storage: Vec<Mutex<ThreadStorage>>,
     // The instant tracing was started.
     start: Instant,
     // Once capturing is started, this will be set to the instant it was started
     // so that timestamps can be adjusted relative to it.
-    adjust: Mutex<Option<u64>>,
+    adjust: AtomicU64,
 }
 
 impl TracingContext {
@@ -80,17 +78,18 @@ impl TracingContext {
         }
 
         Self {
-            capture: AtomicBool::new(false),
             storage,
             start: Instant::now(),
-            adjust: Mutex::new(None),
+            adjust: AtomicU64::new(u64::MAX),
         }
     }
 
     /// Set whether capture is enabled.
     pub(super) fn capture(&self) {
-        *self.adjust.lock() = Some(Instant::now().duration_since(self.start).as_nanos() as u64);
-        self.capture.store(true, Ordering::Release);
+        self.adjust.store(
+            Instant::now().duration_since(self.start).as_nanos() as u64,
+            Ordering::Release,
+        );
     }
 
     /// Enter the given span.
@@ -101,7 +100,7 @@ impl TracingContext {
         type_name: &'static str,
         parent: Option<EventId>,
     ) -> Option<EventId> {
-        if !self.capture.load(Ordering::Acquire) {
+        if self.adjust.load(Ordering::Acquire) == u64::MAX {
             return None;
         }
 
@@ -128,16 +127,14 @@ impl TracingContext {
 
     /// Leave the given span.
     pub(super) fn leave(&self, sibling: Option<EventId>) {
-        if self.capture.load(Ordering::Acquire) {
-            if let Some(sibling) = sibling {
-                self.record(|storage, thread_index, timestamp| {
-                    storage.leaves.push(Leave {
-                        sibling,
-                        thread_index,
-                        timestamp,
-                    })
-                });
-            }
+        if let Some(sibling) = sibling {
+            self.record(|storage, thread_index, timestamp| {
+                storage.leaves.push(Leave {
+                    sibling,
+                    thread_index,
+                    timestamp,
+                })
+            });
         }
     }
 
@@ -153,7 +150,7 @@ impl TracingContext {
     where
         F: FnOnce() -> T,
     {
-        if !self.capture.load(Ordering::Acquire) {
+        if self.adjust.load(Ordering::Acquire) == u64::MAX {
             return f();
         }
 
@@ -209,28 +206,25 @@ impl TracingContext {
     /// If capture is enabled while draining, the exact events recorded are
     /// not specified.
     pub(super) fn drain(&self) -> Events {
-        self.capture.store(false, Ordering::Release);
+        let adjust = self.adjust.swap(u64::MAX, Ordering::AcqRel);
+
+        if adjust == u64::MAX {
+            return Events::new();
+        }
 
         let mut events = Events::new();
-
-        let adjust = *self.adjust.lock();
 
         for storage in self.storage.iter() {
             let mut storage = storage.lock();
 
-            if let Some(adjust) = adjust {
-                for mut enter in storage.enters.drain(..) {
-                    enter.timestamp -= adjust;
-                    events.enters.push(enter);
-                }
+            for mut enter in storage.enters.drain(..) {
+                enter.timestamp -= adjust;
+                events.enters.push(enter);
+            }
 
-                for mut leave in storage.leaves.drain(..) {
-                    leave.timestamp -= adjust;
-                    events.leaves.push(leave);
-                }
-            } else {
-                events.enters.append(&mut storage.enters);
-                events.leaves.append(&mut storage.leaves);
+            for mut leave in storage.leaves.drain(..) {
+                leave.timestamp -= adjust;
+                events.leaves.push(leave);
             }
         }
 
