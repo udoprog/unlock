@@ -64,7 +64,7 @@
 //! [`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
 
 mod event;
-pub use self::event::Event;
+pub use self::event::{Event, Events};
 
 #[cfg(all(feature = "trace", feature = "parking_lot"))]
 mod sync;

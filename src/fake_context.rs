@@ -1,4 +1,4 @@
-use crate::event::Event;
+use crate::event::Events;
 
 /// Enable tracing.
 ///
@@ -14,6 +14,6 @@ pub fn capture() {}
 /// This is the fake version and will always return an empty vector. To enable
 /// the real version, set the `trace` feature.
 #[inline(always)]
-pub fn drain() -> Vec<Event> {
-    Vec::new()
+pub fn drain() -> Events {
+    Events::new()
 }

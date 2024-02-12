@@ -5,16 +5,14 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::time::Duration;
 
-use crate::event::{EventBacktrace, EventId, EventKind};
-use crate::Event;
-
-type Child<'a> = (EventId, &'a str, u64, Option<&'a EventBacktrace>);
+use crate::event::EventId;
+use crate::{Event, Events};
 
 const STYLE: &[u8] = include_bytes!("trace.css");
 const SCRIPT: &[u8] = include_bytes!("trace.js");
 
 /// Write events to the given path.
-pub fn write<P>(path: P, events: &[Event]) -> io::Result<()>
+pub fn write<P>(path: P, events: &Events) -> io::Result<()>
 where
     P: AsRef<Path>,
 {
@@ -61,45 +59,27 @@ where
     let mut children = HashMap::<_, Vec<_>>::new();
     let mut closes = HashMap::new();
 
-    for event in events {
-        start = start.min(event.timestamp);
-        end = end.max(event.timestamp);
+    for enter in &events.enters {
+        start = start.min(enter.timestamp);
 
-        match &event.kind {
-            EventKind::Enter {
-                lock,
-                name,
-                type_name,
-                parent,
-                backtrace,
-                ..
-            } => {
-                if let Some(parent) = parent {
-                    children.entry(*parent).or_default().push((
-                        event.id,
-                        name.as_ref(),
-                        event.timestamp,
-                        backtrace.as_ref(),
-                    ));
-                } else {
-                    opens
-                        .entry((*lock, type_name.as_ref()))
-                        .or_default()
-                        .entry(event.thread_index)
-                        .or_default()
-                        .push((event.id, name.as_ref(), event.timestamp, backtrace.as_ref()));
-                }
-            }
-            EventKind::Leave {
-                sibling: Some(sibling),
-            } => {
-                closes.insert(*sibling, event.timestamp);
-            }
-            _ => {}
+        if let Some(parent) = enter.parent {
+            children.entry(parent).or_default().push(enter);
+        } else {
+            opens
+                .entry((enter.lock, enter.type_name.as_ref()))
+                .or_default()
+                .entry(enter.thread_index)
+                .or_default()
+                .push(enter);
         }
     }
 
-    if start == u64::MAX {
+    for leave in &events.leaves {
+        end = end.max(leave.timestamp);
+        closes.insert(leave.sibling, leave.timestamp);
+    }
+
+    if start == u64::MAX || end == u64::MIN {
         return Ok(());
     }
 
@@ -128,15 +108,11 @@ where
         writeln!(out, "<div class=\"lock-session\">")?;
 
         for (thread_index, events) in events.into_iter() {
-            let start = events
-                .iter()
-                .map(|(_, _, start, _)| *start)
-                .min()
-                .unwrap_or(0);
+            let start = events.iter().map(|e| e.timestamp).min().unwrap_or(0);
 
             let end = events
                 .iter()
-                .flat_map(|(id, _, _, _)| closes.get(id).copied())
+                .flat_map(|ev| closes.get(&ev.id).copied())
                 .max()
                 .unwrap_or(0);
 
@@ -147,8 +123,11 @@ where
 
             let mut details = Vec::new();
 
-            for (id, name, open, backtrace) in events {
-                let Some(close) = closes.get(&id).copied() else {
+            for ev in events {
+                let open = ev.timestamp;
+                let id = ev.id;
+
+                let Some(close) = closes.get(&ev.id).copied() else {
                     return Ok(());
                 };
 
@@ -163,14 +142,11 @@ where
 
                 write_section(
                     &mut out,
-                    id,
+                    ev,
                     (start, end),
-                    name,
-                    open,
                     close,
                     &children,
                     &closes,
-                    backtrace,
                     &mut details,
                 )?;
             }
@@ -211,16 +187,17 @@ where
 #[allow(clippy::too_many_arguments)]
 fn write_section(
     out: &mut dyn io::Write,
-    id: EventId,
+    ev: &Event,
     span: (u64, u64),
-    title: &str,
-    open: u64,
     close: u64,
-    children: &HashMap<EventId, Vec<Child<'_>>>,
+    children: &HashMap<EventId, Vec<&Event>>,
     closes: &HashMap<EventId, u64>,
-    backtrace: Option<&EventBacktrace>,
     d: &mut Vec<u8>,
 ) -> io::Result<()> {
+    let id = ev.id;
+    let title = ev.name.as_ref();
+    let open = ev.timestamp;
+
     let (start, end) = span;
 
     if start == end {
@@ -258,30 +235,19 @@ fn write_section(
         "#
     }?;
 
-    if let Some(backtrace) = backtrace {
+    if let Some(backtrace) = &ev.backtrace {
         writeln!(
             d,
             r#"<tr><td>Backtrace:</td><td class="backtrace" colspan="5">{backtrace}</td></tr>"#
         )?;
     }
 
-    for &(id, title, child_open, backtrace) in children.get(&id).into_iter().flatten() {
-        let Some(child_close) = closes.get(&id).copied() else {
+    for ev in children.get(&ev.id).into_iter().flatten() {
+        let Some(child_close) = closes.get(&ev.id).copied() else {
             continue;
         };
 
-        write_section(
-            out,
-            id,
-            span,
-            title,
-            child_open,
-            child_close,
-            children,
-            closes,
-            backtrace,
-            d,
-        )?;
+        write_section(out, ev, span, child_close, children, closes, d)?;
     }
 
     Ok(())

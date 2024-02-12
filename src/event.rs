@@ -95,43 +95,16 @@ impl fmt::Display for EventId {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(super) enum EventKind {
-    /// Event emitted when a particular named section has been entered.
-    #[allow(dead_code)]
-    Enter {
-        /// The parent event this event is a child of.
-        parent: Option<EventId>,
-        /// The name of the event.
-        name: Cow<'static, str>,
-        /// The type name which is wrapped in the lock.
-        type_name: Cow<'static, str>,
-        /// The unique sequential identifier and kind of the lock.
-        lock: LockId,
-        /// Capture backtrace if RUST_BACKTRACE=1 or RUST_LIB_BACKTRACE=1 is
-        /// set.
-        #[cfg_attr(feature = "serde", serde(default))]
-        backtrace: Option<EventBacktrace>,
-    },
-    /// Event emitted when a particular section has been left.
-    ///
-    /// The `sibling` identifier is the identifier of the matching event that
-    /// opened this section.
-    #[allow(dead_code)]
-    Leave { sibling: Option<EventId> },
-}
-
 /// A backtrace that can be serialized.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-pub struct EventBacktrace(String);
+pub struct EventBacktrace(Box<str>);
 
 impl EventBacktrace {
     #[cfg(feature = "trace")]
     pub(super) fn from_capture(backtrace: Backtrace) -> Option<Self> {
         match backtrace.status() {
-            BacktraceStatus::Captured => Some(Self(format!("{}", backtrace))),
+            BacktraceStatus::Captured => Some(Self(format!("{}", backtrace).into())),
             _ => None,
         }
     }
@@ -143,7 +116,7 @@ impl fmt::Display for EventBacktrace {
     }
 }
 
-/// A recorded event.
+/// A recorded opening event.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Event {
@@ -153,18 +126,57 @@ pub struct Event {
     pub(super) timestamp: u64,
     /// The index of the thread the event was recorded on.
     pub(super) thread_index: usize,
-    /// The kind of the event.
-    pub(super) kind: EventKind,
+    /// The parent event this event is a child of.
+    pub(super) parent: Option<EventId>,
+    /// The name of the event.
+    pub(super) name: Cow<'static, str>,
+    /// The type name which is wrapped in the lock.
+    pub(super) type_name: Cow<'static, str>,
+    /// The unique sequential identifier and kind of the lock.
+    pub(super) lock: LockId,
+    /// Capture backtrace if RUST_BACKTRACE=1 or RUST_LIB_BACKTRACE=1 is
+    /// set.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub(super) backtrace: Option<EventBacktrace>,
 }
 
-impl Event {
-    #[cfg(feature = "trace")]
-    pub(super) fn new(id: EventId, timestamp: u64, thread_index: usize, kind: EventKind) -> Self {
+/// A recorded leaving event.
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Leave {
+    /// Event emitted when a particular section has been left.
+    ///
+    /// The `sibling` identifier is the identifier of the matching event that
+    /// opened this section.
+    pub(super) sibling: EventId,
+    /// Thread index.
+    pub(super) thread_index: usize,
+    /// The timestamp when the event was left.
+    pub(super) timestamp: u64,
+}
+
+/// Collection of collected events.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Events {
+    pub(super) enters: Vec<Event>,
+    pub(super) leaves: Vec<Leave>,
+}
+
+impl Events {
+    /// The number of enter events in the collection.
+    pub fn len(&self) -> usize {
+        self.enters.len()
+    }
+
+    /// Test if the collection of events is empty.
+    pub fn is_empty(&self) -> bool {
+        self.enters.is_empty()
+    }
+
+    pub(super) fn new() -> Self {
         Self {
-            id,
-            timestamp,
-            thread_index,
-            kind,
+            enters: Vec::new(),
+            leaves: Vec::new(),
         }
     }
 }

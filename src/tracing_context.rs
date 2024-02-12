@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use parking_lot::Mutex;
 
-use crate::event::{Event, EventBacktrace, EventId, EventKind, LockId};
+use crate::event::{Event, EventBacktrace, EventId, Events, Leave, LockId};
 
 /// Initial event capacity for each thread.
 const CAPACITY: usize = 8192;
@@ -24,9 +24,8 @@ pub fn capture() {
 }
 
 /// Disable capture and drain the current collection of events.
-pub fn drain() -> Vec<Event> {
-    let cx = get();
-    cx.drain()
+pub fn drain() -> Events {
+    get().drain()
 }
 
 static mut TRACING_CONTEXT: NonNull<TracingContext> = NonNull::dangling();
@@ -50,12 +49,17 @@ pub(super) fn get() -> &'static TracingContext {
     }
 }
 
+struct ThreadStorage {
+    enters: Vec<Event>,
+    leaves: Vec<Leave>,
+}
+
 /// A context capturing tracing events.
 pub(super) struct TracingContext {
     // Whether capture is enabled or not.
     capture: AtomicBool,
     // shaded storage for events to minimize contention.
-    events: Vec<Mutex<Vec<Event>>>,
+    storage: Vec<Mutex<ThreadStorage>>,
     // The instant tracing was started.
     start: Instant,
     // Once capturing is started, this will be set to the instant it was started
@@ -66,15 +70,18 @@ pub(super) struct TracingContext {
 impl TracingContext {
     /// Create a new tracing context.
     pub(super) fn new(threads: usize) -> Self {
-        let mut events = Vec::with_capacity(threads);
+        let mut storage = Vec::with_capacity(threads);
 
         for _ in 0..threads.max(1) {
-            events.push(Mutex::new(Vec::with_capacity(CAPACITY)));
+            storage.push(Mutex::new(ThreadStorage {
+                enters: Vec::with_capacity(CAPACITY),
+                leaves: Vec::with_capacity(CAPACITY),
+            }));
         }
 
         Self {
             capture: AtomicBool::new(false),
-            events,
+            storage,
             start: Instant::now(),
             adjust: Mutex::new(None),
         }
@@ -98,12 +105,22 @@ impl TracingContext {
             return None;
         }
 
-        let id = self.record(EventKind::Enter {
-            parent,
-            name: name.into(),
-            type_name: type_name.into(),
-            lock,
-            backtrace: EventBacktrace::from_capture(Backtrace::capture()),
+        let id = EventId::next();
+        let name = name.into();
+        let type_name = type_name.into();
+        let backtrace = EventBacktrace::from_capture(Backtrace::capture());
+
+        self.record(|storage, thread_index, timestamp| {
+            storage.enters.push(Event {
+                id,
+                timestamp,
+                thread_index,
+                parent,
+                name,
+                type_name,
+                lock,
+                backtrace,
+            })
         });
 
         Some(id)
@@ -112,7 +129,15 @@ impl TracingContext {
     /// Leave the given span.
     pub(super) fn leave(&self, sibling: Option<EventId>) {
         if self.capture.load(Ordering::Acquire) {
-            self.record(EventKind::Leave { sibling });
+            if let Some(sibling) = sibling {
+                self.record(|storage, thread_index, timestamp| {
+                    storage.leaves.push(Leave {
+                        sibling,
+                        thread_index,
+                        timestamp,
+                    })
+                });
+            }
         }
     }
 
@@ -132,66 +157,97 @@ impl TracingContext {
             return f();
         }
 
-        let id = self.record(EventKind::Enter {
-            parent,
-            name: name.into(),
-            type_name: type_name.into(),
-            lock,
-            backtrace: EventBacktrace::from_capture(Backtrace::capture()),
+        let id = EventId::next();
+        let name = name.into();
+        let type_name = type_name.into();
+        let backtrace = EventBacktrace::from_capture(Backtrace::capture());
+
+        self.record(|storage, thread_index, timestamp| {
+            storage.enters.push(Event {
+                id,
+                timestamp,
+                thread_index,
+                parent,
+                name,
+                type_name,
+                lock,
+                backtrace,
+            })
         });
 
         let result = f();
-        self.record(EventKind::Leave { sibling: Some(id) });
+
+        self.record(|storage, thread_index, timestamp| {
+            storage.leaves.push(Leave {
+                thread_index,
+                sibling: id,
+                timestamp,
+            })
+        });
+
         result
     }
 
     /// Record an event.
-    fn record(&self, kind: EventKind) -> EventId {
+    fn record<F>(&self, f: F)
+    where
+        F: FnOnce(&mut ThreadStorage, usize, u64),
+    {
+        let thread_index = thread_index();
         // NB: This is at risk of being truncated, but that still gives us ~584
         // years worth of tracing.
         let duration = Instant::now().duration_since(self.start).as_nanos() as u64;
-
-        let index = THREAD_INDEX_THREAD.with(|index| {
-            if let Some(index) = index.get() {
-                return index;
-            }
-
-            let new_index = THREAD_INDEX.fetch_add(1, Ordering::Relaxed);
-            index.set(Some(new_index));
-            new_index
-        });
-
-        let id = EventId::next();
-        let mut events = self.events[index % self.events.len()].lock();
-        events.push(Event::new(id, duration, index, kind));
-        id
+        f(
+            &mut self.storage[thread_index % self.storage.len()].lock(),
+            thread_index,
+            duration,
+        );
     }
 
     /// Drain events.
     ///
     /// If capture is enabled while draining, the exact events recorded are
     /// not specified.
-    pub(super) fn drain(&self) -> Vec<Event> {
+    pub(super) fn drain(&self) -> Events {
         self.capture.store(false, Ordering::Release);
 
-        let mut output = Vec::new();
+        let mut events = Events::new();
 
         let adjust = *self.adjust.lock();
 
-        for event in self.events.iter() {
-            let mut events = event.lock();
+        for storage in self.storage.iter() {
+            let mut storage = storage.lock();
 
             if let Some(adjust) = adjust {
-                for mut event in events.drain(..) {
-                    event.timestamp -= adjust;
-                    output.push(event);
+                for mut enter in storage.enters.drain(..) {
+                    enter.timestamp -= adjust;
+                    events.enters.push(enter);
+                }
+
+                for mut leave in storage.leaves.drain(..) {
+                    leave.timestamp -= adjust;
+                    events.leaves.push(leave);
                 }
             } else {
-                output.extend(events.drain(..));
+                events.enters.extend(storage.enters.drain(..));
+                events.leaves.extend(storage.leaves.drain(..));
             }
         }
 
-        output.sort_by_key(|event| event.id);
-        output
+        events.enters.sort_by_key(|event| event.id);
+        events.leaves.sort_by_key(|event| event.sibling);
+        events
     }
+}
+
+fn thread_index() -> usize {
+    THREAD_INDEX_THREAD.with(|index| {
+        if let Some(index) = index.get() {
+            return index;
+        }
+
+        let new_index = THREAD_INDEX.fetch_add(1, Ordering::Relaxed);
+        index.set(Some(new_index));
+        new_index
+    })
 }
