@@ -35,7 +35,7 @@ static INIT_TRACING_CONTEXT: Once = Once::new();
 static THREAD_INDEX: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
-    static THREAD_INDEX_THREAD: Cell<Option<usize>> = Cell::new(None);
+    static THREAD_INDEX_THREAD: Cell<Option<usize>> = const { Cell::new(None) };
 }
 
 /// Access the global tracing context.
