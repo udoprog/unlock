@@ -39,6 +39,7 @@ thread_local! {
 }
 
 /// Access the global tracing context.
+#[allow(static_mut_refs)]
 pub(super) fn get() -> &'static TracingContext {
     unsafe {
         INIT_TRACING_CONTEXT.call_once(|| {

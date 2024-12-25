@@ -60,7 +60,7 @@ pub struct RwLockReadGuard<'a, T> {
     event: Option<EventId>,
 }
 
-impl<'a, T> Deref for RwLockReadGuard<'a, T> {
+impl<T> Deref for RwLockReadGuard<'_, T> {
     type Target = T;
 
     #[inline]
@@ -69,7 +69,7 @@ impl<'a, T> Deref for RwLockReadGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for RwLockReadGuard<'a, T> {
+impl<T> Drop for RwLockReadGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         get().leave(self.event);
@@ -82,7 +82,7 @@ pub struct RwLockWriteGuard<'a, T> {
     event: Option<EventId>,
 }
 
-impl<'a, T> Deref for RwLockWriteGuard<'a, T> {
+impl<T> Deref for RwLockWriteGuard<'_, T> {
     type Target = T;
 
     #[inline]
@@ -91,14 +91,14 @@ impl<'a, T> Deref for RwLockWriteGuard<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for RwLockWriteGuard<'a, T> {
+impl<T> DerefMut for RwLockWriteGuard<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
+impl<T> Drop for RwLockWriteGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         get().leave(self.event);
@@ -149,7 +149,7 @@ pub struct MutexGuard<'a, T> {
     event: Option<EventId>,
 }
 
-impl<'a, T> Deref for MutexGuard<'a, T> {
+impl<T> Deref for MutexGuard<'_, T> {
     type Target = T;
 
     #[inline]
@@ -158,14 +158,14 @@ impl<'a, T> Deref for MutexGuard<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for MutexGuard<'a, T> {
+impl<T> DerefMut for MutexGuard<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'a, T> Drop for MutexGuard<'a, T> {
+impl<T> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         get().leave(self.event);
