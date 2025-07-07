@@ -104,7 +104,7 @@ impl EventBacktrace {
     #[cfg(feature = "trace")]
     pub(super) fn from_capture(backtrace: Backtrace) -> Option<Self> {
         match backtrace.status() {
-            BacktraceStatus::Captured => Some(Self(format!("{}", backtrace).into())),
+            BacktraceStatus::Captured => Some(Self(format!("{backtrace}").into())),
             _ => None,
         }
     }
