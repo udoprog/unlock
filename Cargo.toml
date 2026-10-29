@@ -3,7 +3,7 @@ name = "unlock"
 version = "0.0.13"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
-rust-version = "1.71"
+rust-version = "1.95"
 description = "Instrumented synchronization primitives helping you to unlock performance issues"
 documentation = "https://docs.rs/unlock"
 readme = "README.md"
@@ -19,7 +19,7 @@ trace = []
 
 [dependencies]
 num_cpus = "1.16.0"
-parking_lot = { version = "0.12", optional = true }
+parking_lot = { version = "0.13", optional = true }
 serde = { version = "1.0.196", features = ["derive"], optional = true }
 
 [package.metadata.docs.rs]
