@@ -138,14 +138,14 @@ where
                     return Ok(());
                 };
 
-                writeln! {
+                writeln!(
                     details,
                     r#"
                     <tr data-entry data-entry-start="{open}" data-entry-close="{close}">
                         <td class="title" colspan="6">Event: {id}</td>
                     </tr>
                     "#
-                }?;
+                )?;
 
                 write_section(
                     &mut out,
@@ -224,7 +224,7 @@ fn write_section(
         "<div id=\"event-{id}\" class=\"section {title}\" style=\"{style}\" title=\"{hover_title}\"></div>"
     )?;
 
-    writeln! {
+    writeln!(
         d,
         r#"
         <tr data-entry data-entry-start="{open}" data-entry-close="{close}">
@@ -236,7 +236,7 @@ fn write_section(
             <td width="100%"></td>
         </tr>
         "#
-    }?;
+    )?;
 
     if let Some(backtrace) = &ev.backtrace {
         writeln!(
