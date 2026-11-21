@@ -1,13 +1,12 @@
 [package]
 name = "unlock"
-version = "0.0.13"
+version = "0.0.14"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.95"
 description = "Instrumented synchronization primitives helping you to unlock performance issues"
 documentation = "https://docs.rs/unlock"
 readme = "README.md"
-homepage = "https://github.com/udoprog/unlock"
 repository = "https://github.com/udoprog/unlock"
 license = "MIT OR Apache-2.0"
 keywords = ["mutex", "rwlock", "thread"]
