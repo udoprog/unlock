@@ -61,7 +61,6 @@
 //!
 //! [`RwLock`]: https://docs.rs/unlock/latest/unlock/struct.RwLock.html
 //! [`Mutex`]: https://docs.rs/unlock/latest/unlock/struct.Mutex.html
-//! [`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
 
 mod event;
 pub use self::event::{Event, Events};
