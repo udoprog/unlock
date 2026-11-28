@@ -58,9 +58,6 @@
 //!   feature is enabled and `trace` is disabled, this will re-export
 //!   `parking_lot` primitives.
 //! * `serde` - Enable serialization for events.
-//!
-//! [`RwLock`]: https://docs.rs/unlock/latest/unlock/struct.RwLock.html
-//! [`Mutex`]: https://docs.rs/unlock/latest/unlock/struct.Mutex.html
 
 mod event;
 pub use self::event::{Event, Events};

@@ -63,5 +63,4 @@ for processing later.
 
 [`RwLock`]: https://docs.rs/unlock/latest/unlock/struct.RwLock.html
 [`Mutex`]: https://docs.rs/unlock/latest/unlock/struct.Mutex.html
-
-[`html::write`]: https://docs.rs/unlock/0.0.14/unlock/html/fn.write.html
+[`html::write`]: https://docs.rs/unlock/latest/unlock/html/fn.write.html
